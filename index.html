@@ -174,6 +174,7 @@
       Control remoto
     </div>
 
+    <!-- ESTADOS -->
     <div class="status-box">
 
       <div class="status-row">
@@ -199,6 +200,8 @@
 
     </div>
 
+
+    <!-- BOTÓN WAKE -->
     <button
       id="wakeButton"
       onclick="wakePC()"
@@ -207,6 +210,8 @@
       ⚡ ENCENDER PC
     </button>
 
+
+    <!-- CONFIGURACIÓN -->
     <button
       class="settings"
       onclick="configureMQTT()"
@@ -214,9 +219,11 @@
       ⚙️ Configurar conexión
     </button>
 
+
     <div id="message">
       Conectando...
     </div>
+
 
     <div class="connection">
       MQTT:
@@ -225,12 +232,14 @@
       </span>
     </div>
 
+
     <div class="last-update">
       Última actualización:
       <span id="lastUpdate">
         Nunca
       </span>
     </div>
+
 
     <div class="footer">
       PC Gaming Remote Control
@@ -250,7 +259,8 @@
   const MQTT_HOST =
     "wss://a50a4a68b1a247a1866a3db9a6d40ce2.s1.eu.hivemq.cloud:8884/mqtt";
 
-  const MQTT_USER = "JuanxSt12";
+  const MQTT_USER =
+    "JuanxSt12";
 
   const MQTT_WAKE_TOPIC =
     "juanpablo/pc/wake";
@@ -260,10 +270,19 @@
 
 
   /* =========================================
-     TIEMPO MÁXIMO SIN HEARTBEAT
+     CONFIGURACIÓN HEARTBEAT
   ========================================= */
 
-  const OFFLINE_TIMEOUT = 90 * 1000;
+  /*
+    estado_pc.py envía un estado cada 30 segundos.
+
+    Si pasan 90 segundos sin recibir
+    un heartbeat nuevo, consideramos
+    que el PC está apagado.
+  */
+
+  const OFFLINE_TIMEOUT =
+    90 * 1000;
 
 
   let mqttClient = null;
@@ -272,7 +291,7 @@
 
 
   /* =========================================
-     ELEMENTOS
+     ELEMENTOS HTML
   ========================================= */
 
   const wakeButton =
@@ -303,23 +322,39 @@
 
   function configureMQTT() {
 
-    const password = prompt(
-      "Introduce la contraseña de tu credencial HiveMQ:"
-    );
+    const password =
+      prompt(
+        "Introduce la contraseña de tu credencial HiveMQ:"
+      );
+
 
     if (!password) {
       return;
     }
+
+
+    /*
+      IMPORTANTE:
+
+      La contraseña NO está escrita
+      en el código.
+
+      Se guarda solamente en el
+      almacenamiento local del navegador.
+    */
 
     localStorage.setItem(
       "mqtt_password",
       password
     );
 
+
     message.textContent =
       "Contraseña guardada. Conectando...";
 
+
     connectMQTT();
+
   }
 
 
@@ -330,7 +365,9 @@
   function connectMQTT() {
 
     const password =
-      localStorage.getItem("mqtt_password");
+      localStorage.getItem(
+        "mqtt_password"
+      );
 
 
     if (!password) {
@@ -341,11 +378,18 @@
       message.textContent =
         "Configura primero la conexión MQTT";
 
-      wakeButton.disabled = true;
+      wakeButton.disabled =
+        true;
 
       return;
+
     }
 
+
+    /*
+      Cerrar conexión anterior
+      si existe.
+    */
 
     if (mqttClient) {
 
@@ -363,171 +407,209 @@
       "#f59e0b";
 
 
-    mqttClient = mqtt.connect(
-      MQTT_HOST,
-      {
+    mqttClient =
+      mqtt.connect(
+        MQTT_HOST,
+        {
 
-        username: MQTT_USER,
+          username:
+            MQTT_USER,
 
-        password: password,
+          password:
+            password,
 
-        clean: true,
+          clean:
+            true,
 
-        reconnectPeriod: 5000,
+          reconnectPeriod:
+            5000,
 
-        connectTimeout: 10000,
+          connectTimeout:
+            10000,
 
-        protocolVersion: 4
+          protocolVersion:
+            4
 
-      }
-    );
+        }
+      );
 
 
     /* =====================================
        MQTT CONECTADO
     ===================================== */
 
-    mqttClient.on("connect", function () {
+    mqttClient.on(
+      "connect",
+      function () {
 
-      console.log("MQTT conectado");
-
-      connection.textContent =
-        "Conectado";
-
-      connection.style.color =
-        "#22c55e";
+        console.log(
+          "MQTT conectado"
+        );
 
 
-      message.textContent =
-        "Conectado a HiveMQ";
+        connection.textContent =
+          "Conectado";
+
+        connection.style.color =
+          "#22c55e";
 
 
-      wakeButton.disabled = false;
-
-      wakeButton.textContent =
-        "⚡ ENCENDER PC";
+        message.textContent =
+          "Conectado a HiveMQ";
 
 
-      mqttClient.subscribe(
-        MQTT_STATUS_TOPIC,
-        {
-          qos: 1
-        },
-        function (error) {
+        /*
+          El botón funciona siempre que
+          MQTT esté conectado.
+        */
 
-          if (error) {
+        wakeButton.disabled =
+          false;
 
-            console.error(
-              "Error suscripción:",
-              error
-            );
+        wakeButton.textContent =
+          "⚡ ENCENDER PC";
 
-            message.textContent =
-              "MQTT conectado, pero no se pudo recibir estado";
 
-          } else {
+        /*
+          Suscribirse al estado del PC.
+        */
 
-            console.log(
-              "Suscrito a:",
-              MQTT_STATUS_TOPIC
-            );
+        mqttClient.subscribe(
+          MQTT_STATUS_TOPIC,
+          {
+            qos: 1
+          },
+          function (error) {
+
+            if (error) {
+
+              console.error(
+                "Error suscripción:",
+                error
+              );
+
+
+              message.textContent =
+                "MQTT conectado, pero no se pudo recibir estado";
+
+            } else {
+
+              console.log(
+                "Suscrito a:",
+                MQTT_STATUS_TOPIC
+              );
+
+            }
 
           }
-
-        }
-      );
-
-    });
-
-
-    /* =====================================
-       RECIBIR ESTADO
-    ===================================== */
-
-    mqttClient.on("message", function (
-      topic,
-      payload
-    ) {
-
-      console.log(
-        "Mensaje recibido:",
-        topic,
-        payload.toString()
-      );
-
-
-      if (
-        topic !== MQTT_STATUS_TOPIC
-      ) {
-        return;
-      }
-
-
-      try {
-
-        const data =
-          JSON.parse(payload.toString());
-
-
-        updateStatus(data);
-
-      } catch (error) {
-
-        console.error(
-          "JSON inválido:",
-          error
         );
 
       }
-
-    });
-
-
-    /* =====================================
-       DESCONEXIÓN MQTT
-    ===================================== */
-
-    mqttClient.on("close", function () {
-
-      connection.textContent =
-        "Desconectado";
-
-      connection.style.color =
-        "#ef4444";
-
-      message.textContent =
-        "MQTT desconectado. Reintentando...";
-
-    });
+    );
 
 
     /* =====================================
-       ERROR MQTT
+       RECIBIR MENSAJES
     ===================================== */
 
-    mqttClient.on("error", function (error) {
+    mqttClient.on(
+      "message",
+      function (
+        topic,
+        payload
+      ) {
 
-      console.error(
-        "MQTT ERROR:",
-        error
-      );
+        console.log(
+          "Mensaje recibido:",
+          topic,
+          payload.toString()
+        );
 
-      connection.textContent =
-        "Error";
 
-      connection.style.color =
-        "#ef4444";
+        if (
+          topic !== MQTT_STATUS_TOPIC
+        ) {
+          return;
+        }
 
-      message.textContent =
-        "Error de conexión MQTT";
 
-    });
+        try {
+
+          const data =
+            JSON.parse(
+              payload.toString()
+            );
+
+
+          updateStatus(data);
+
+        } catch (error) {
+
+          console.error(
+            "JSON inválido:",
+            error
+          );
+
+        }
+
+      }
+    );
+
+
+    /* =====================================
+       DESCONEXIÓN
+    ===================================== */
+
+    mqttClient.on(
+      "close",
+      function () {
+
+        connection.textContent =
+          "Desconectado";
+
+        connection.style.color =
+          "#ef4444";
+
+
+        message.textContent =
+          "MQTT desconectado. Reintentando...";
+
+      }
+    );
+
+
+    /* =====================================
+       ERROR
+    ===================================== */
+
+    mqttClient.on(
+      "error",
+      function (error) {
+
+        console.error(
+          "MQTT ERROR:",
+          error
+        );
+
+
+        connection.textContent =
+          "Error";
+
+        connection.style.color =
+          "#ef4444";
+
+
+        message.textContent =
+          "Error de conexión MQTT";
+
+      }
+    );
 
   }
 
 
   /* =========================================
-     ACTUALIZAR ESTADO
+     ACTUALIZAR ESTADOS
   ========================================= */
 
   function updateStatus(data) {
@@ -539,135 +621,158 @@
 
 
     /*
-      El timestamp viene desde el PC.
+      Primero actualizamos Tailscale
+      y Sunshine.
 
-      Ejemplo:
-
-      1790526142
-
-      Lo convertimos de segundos
-      a milisegundos.
+      Estos valores vienen directamente
+      de estado_pc.py.
     */
 
     if (
-      !data.timestamp ||
-      isNaN(data.timestamp)
+      data.tailscale !== undefined
     ) {
 
-      console.warn(
-        "Mensaje sin timestamp válido"
+      setStatus(
+        tailscaleStatus,
+        data.tailscale
       );
-
-      return;
 
     }
 
 
-    const reportedTime =
-      Number(data.timestamp) * 1000;
-
-
-    const age =
-      Date.now() - reportedTime;
-
-
-    console.log(
-      "Edad del heartbeat:",
-      Math.round(age / 1000),
-      "segundos"
-    );
-
-
-    /*
-      Si el mensaje tiene más de 90 segundos,
-      probablemente es un mensaje viejo/retained.
-
-      NO lo usamos para decir que el PC está online.
-    */
-
     if (
-      age > OFFLINE_TIMEOUT
+      data.sunshine !== undefined
     ) {
 
-      console.warn(
-        "Heartbeat antiguo ignorado"
+      setStatus(
+        sunshineStatus,
+        data.sunshine
       );
-
-      checkHeartbeat();
-
-      return;
 
     }
 
 
     /*
-      HEARTBEAT VÁLIDO
+      HEARTBEAT DEL PC
 
-      Guardamos la hora REAL enviada
-      por el PC.
+      estado_pc.py manda timestamp
+      en segundos Unix.
+
+      Lo convertimos a milisegundos.
     */
 
-    lastStatusTime =
-      reportedTime;
+    if (
+      data.timestamp !== undefined &&
+      !isNaN(data.timestamp)
+    ) {
+
+      const reportedTime =
+        Number(data.timestamp) * 1000;
+
+
+      const age =
+        Date.now() - reportedTime;
+
+
+      console.log(
+        "Edad del heartbeat:",
+        Math.round(age / 1000),
+        "segundos"
+      );
+
+
+      /*
+        Si el heartbeat es reciente,
+        el PC está ONLINE.
+      */
+
+      if (
+        age >= 0 &&
+        age <= OFFLINE_TIMEOUT
+      ) {
+
+        lastStatusTime =
+          reportedTime;
+
+
+        setStatus(
+          pcStatus,
+          "online"
+        );
+
+
+        const date =
+          new Date(
+            reportedTime
+          );
+
+
+        lastUpdate.textContent =
+          date.toLocaleTimeString();
+
+
+        message.textContent =
+          "Estado actualizado";
+
+
+        return;
+
+      }
+
+
+      /*
+        Si el timestamp es demasiado viejo,
+        NO ponemos PC online.
+      */
+
+      if (
+        age > OFFLINE_TIMEOUT
+      ) {
+
+        setStatus(
+          pcStatus,
+          "offline"
+        );
+
+
+        lastUpdate.textContent =
+          "Sin señal";
+
+
+        message.textContent =
+          "No se recibe señal del PC";
+
+
+        return;
+
+      }
+
+    }
 
 
     /*
-      PC ONLINE
+      Compatibilidad:
 
-      NO usamos data.pc.
+      Si por alguna razón el timestamp
+      todavía no está disponible pero
+      estado_pc.py dice que el PC está
+      online, lo mostramos.
+
+      Esto evita que todo quede en
+      SIN DATOS si llega un mensaje
+      antiguo con el formato anterior.
     */
 
-    setStatus(
-      pcStatus,
-      "online"
-    );
+    if (
+      data.pc === "online"
+    ) {
 
+      setStatus(
+        pcStatus,
+        "online"
+      );
 
-    /*
-      TAILSCALE
-
-      Este sí viene directamente
-      del PC.
-    */
-
-    setStatus(
-      tailscaleStatus,
-      data.tailscale
-    );
-
-
-    /*
-      SUNSHINE
-
-      También viene directamente
-      del PC.
-    */
-
-    setStatus(
-      sunshineStatus,
-      data.sunshine
-    );
-
-
-    /*
-      HORA DEL ÚLTIMO HEARTBEAT
-    */
-
-    const date =
-      new Date(reportedTime);
-
-
-    lastUpdate.textContent =
-      date.toLocaleTimeString();
-
-
-    message.textContent =
-      "Estado actualizado";
-
-
-    console.log(
-      "Heartbeat válido"
-    );
+    }
 
   }
 
@@ -730,9 +835,14 @@
 
   /* =========================================
      COMPROBAR HEARTBEAT
-  ========================================= */
+    ========================================= */
 
   function checkHeartbeat() {
+
+    /*
+      Todavía nunca hemos recibido
+      un heartbeat.
+    */
 
     if (
       lastStatusTime === 0
@@ -744,13 +854,13 @@
 
 
     const elapsed =
-      Date.now() - lastStatusTime;
+      Date.now() -
+      lastStatusTime;
 
 
     /*
-      Si llevamos más de 90 segundos
-      sin recibir un heartbeat válido,
-      consideramos el PC apagado.
+      Más de 90 segundos sin heartbeat
+      = PC apagado.
     */
 
     if (
@@ -762,6 +872,12 @@
         "offline"
       );
 
+
+      /*
+        Al perder el heartbeat ya no
+        tenemos información actual
+        de Tailscale/Sunshine.
+      */
 
       setStatus(
         tailscaleStatus,
@@ -821,7 +937,9 @@
     }
 
 
-    wakeButton.disabled = true;
+    wakeButton.disabled =
+      true;
+
 
     wakeButton.textContent =
       "⚡ ENVIANDO...";
@@ -843,14 +961,18 @@
             error
           );
 
+
           message.textContent =
             "❌ Error enviando comando";
+
 
           wakeButton.disabled =
             false;
 
+
           wakeButton.textContent =
             "⚡ ENCENDER PC";
+
 
           return;
 
@@ -870,11 +992,17 @@
           "⚡ PC ENCENDIÉNDOSE...";
 
 
+        /*
+          Después de 15 segundos
+          permitimos pulsarlo otra vez.
+        */
+
         setTimeout(
           function () {
 
             wakeButton.disabled =
               false;
+
 
             wakeButton.textContent =
               "⚡ ENCENDER PC";
@@ -908,12 +1036,14 @@
         message.textContent =
           "Contraseña encontrada. Conectando...";
 
+
         connectMQTT();
 
       } else {
 
         message.textContent =
           "Configura tu conexión MQTT";
+
 
         connection.textContent =
           "Sin configurar";
