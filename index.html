@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>PC Gaming - Control</title
+  <title>PC Gaming - Control</title>
 
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
@@ -174,7 +174,6 @@
       Control remoto
     </div>
 
-    <!-- ESTADOS -->
     <div class="status-box">
 
       <div class="status-row">
@@ -200,8 +199,6 @@
 
     </div>
 
-
-    <!-- BOTÓN WAKE -->
     <button
       id="wakeButton"
       onclick="wakePC()"
@@ -210,8 +207,6 @@
       ⚡ ENCENDER PC
     </button>
 
-
-    <!-- CONFIGURACIÓN -->
     <button
       class="settings"
       onclick="configureMQTT()"
@@ -219,11 +214,9 @@
       ⚙️ Configurar conexión
     </button>
 
-
     <div id="message">
       Conectando...
     </div>
-
 
     <div class="connection">
       MQTT:
@@ -232,14 +225,12 @@
       </span>
     </div>
 
-
     <div class="last-update">
       Última actualización:
       <span id="lastUpdate">
         Nunca
       </span>
     </div>
-
 
     <div class="footer">
       PC Gaming Remote Control
@@ -268,15 +259,20 @@
     "juanpablo/pc/status";
 
 
+  /* =========================================
+     TIEMPO MÁXIMO SIN HEARTBEAT
+  ========================================= */
+
+  const OFFLINE_TIMEOUT = 90 * 1000;
+
+
   let mqttClient = null;
 
   let lastStatusTime = 0;
 
-  let statusTimeout = null;
-
 
   /* =========================================
-     ELEMENTOS HTML
+     ELEMENTOS
   ========================================= */
 
   const wakeButton =
@@ -406,22 +402,11 @@
         "Conectado a HiveMQ";
 
 
-      /*
-        IMPORTANTE:
-
-        El botón se habilita apenas MQTT
-        está conectado.
-
-        NO depende del estado del PC.
-      */
-
       wakeButton.disabled = false;
 
       wakeButton.textContent =
         "⚡ ENCENDER PC";
 
-
-      /* SUSCRIBIRSE AL ESTADO */
 
       mqttClient.subscribe(
         MQTT_STATUS_TOPIC,
@@ -456,7 +441,7 @@
 
 
     /* =====================================
-       RECIBIR MENSAJES
+       RECIBIR ESTADO
     ===================================== */
 
     mqttClient.on("message", function (
@@ -499,7 +484,7 @@
 
 
     /* =====================================
-       DESCONEXIÓN
+       DESCONEXIÓN MQTT
     ===================================== */
 
     mqttClient.on("close", function () {
@@ -517,7 +502,7 @@
 
 
     /* =====================================
-       ERROR
+       ERROR MQTT
     ===================================== */
 
     mqttClient.on("error", function (error) {
@@ -542,29 +527,108 @@
 
 
   /* =========================================
-     ACTUALIZAR ESTADOS
+     ACTUALIZAR ESTADO
   ========================================= */
 
   function updateStatus(data) {
 
     console.log(
-      "Estado del PC:",
+      "Estado recibido:",
       data
     );
 
 
-    lastStatusTime = Date.now();
+    /*
+      El timestamp viene desde el PC.
+
+      Ejemplo:
+
+      1790526142
+
+      Lo convertimos de segundos
+      a milisegundos.
+    */
+
+    if (
+      !data.timestamp ||
+      isNaN(data.timestamp)
+    ) {
+
+      console.warn(
+        "Mensaje sin timestamp válido"
+      );
+
+      return;
+
+    }
 
 
-    /* PC */
+    const reportedTime =
+      Number(data.timestamp) * 1000;
 
-    setStatus(
-      pcStatus,
-      data.pc
+
+    const age =
+      Date.now() - reportedTime;
+
+
+    console.log(
+      "Edad del heartbeat:",
+      Math.round(age / 1000),
+      "segundos"
     );
 
 
-    /* TAILSCALE */
+    /*
+      Si el mensaje tiene más de 90 segundos,
+      probablemente es un mensaje viejo/retained.
+
+      NO lo usamos para decir que el PC está online.
+    */
+
+    if (
+      age > OFFLINE_TIMEOUT
+    ) {
+
+      console.warn(
+        "Heartbeat antiguo ignorado"
+      );
+
+      checkHeartbeat();
+
+      return;
+
+    }
+
+
+    /*
+      HEARTBEAT VÁLIDO
+
+      Guardamos la hora REAL enviada
+      por el PC.
+    */
+
+    lastStatusTime =
+      reportedTime;
+
+
+    /*
+      PC ONLINE
+
+      NO usamos data.pc.
+    */
+
+    setStatus(
+      pcStatus,
+      "online"
+    );
+
+
+    /*
+      TAILSCALE
+
+      Este sí viene directamente
+      del PC.
+    */
 
     setStatus(
       tailscaleStatus,
@@ -572,7 +636,12 @@
     );
 
 
-    /* SUNSHINE */
+    /*
+      SUNSHINE
+
+      También viene directamente
+      del PC.
+    */
 
     setStatus(
       sunshineStatus,
@@ -580,40 +649,31 @@
     );
 
 
-    /* HORA */
+    /*
+      HORA DEL ÚLTIMO HEARTBEAT
+    */
 
-    const now =
-      new Date();
+    const date =
+      new Date(reportedTime);
+
 
     lastUpdate.textContent =
-      now.toLocaleTimeString();
+      date.toLocaleTimeString();
 
 
     message.textContent =
       "Estado actualizado";
 
 
-    /*
-      Si recibimos heartbeat,
-      reiniciamos temporizador.
-    */
-
-    if (statusTimeout) {
-      clearTimeout(statusTimeout);
-    }
-
-
-    statusTimeout =
-      setTimeout(
-        statusLost,
-        90000
-      );
+    console.log(
+      "Heartbeat válido"
+    );
 
   }
 
 
   /* =========================================
-     MOSTRAR ESTADO INDIVIDUAL
+     MOSTRAR ESTADO
   ========================================= */
 
   function setStatus(
@@ -669,34 +729,77 @@
 
 
   /* =========================================
-     SE PERDIÓ EL HEARTBEAT
+     COMPROBAR HEARTBEAT
   ========================================= */
 
-  function statusLost() {
+  function checkHeartbeat() {
 
-    setStatus(
-      pcStatus,
-      "offline"
-    );
+    if (
+      lastStatusTime === 0
+    ) {
 
-    setStatus(
-      tailscaleStatus,
-      "offline"
-    );
+      return;
 
-    setStatus(
-      sunshineStatus,
-      "offline"
-    );
+    }
 
 
-    message.textContent =
-      "No se recibe señal del PC";
+    const elapsed =
+      Date.now() - lastStatusTime;
 
-    lastUpdate.textContent =
-      "Sin señal";
+
+    /*
+      Si llevamos más de 90 segundos
+      sin recibir un heartbeat válido,
+      consideramos el PC apagado.
+    */
+
+    if (
+      elapsed > OFFLINE_TIMEOUT
+    ) {
+
+      setStatus(
+        pcStatus,
+        "offline"
+      );
+
+
+      setStatus(
+        tailscaleStatus,
+        "unknown"
+      );
+
+
+      setStatus(
+        sunshineStatus,
+        "unknown"
+      );
+
+
+      message.textContent =
+        "No se recibe señal del PC";
+
+
+      lastUpdate.textContent =
+        "Sin señal";
+
+
+      console.log(
+        "Heartbeat perdido - PC OFFLINE"
+      );
+
+    }
 
   }
+
+
+  /* =========================================
+     COMPROBAR CADA SEGUNDO
+  ========================================= */
+
+  setInterval(
+    checkHeartbeat,
+    1000
+  );
 
 
   /* =========================================
@@ -766,11 +869,6 @@
         wakeButton.textContent =
           "⚡ PC ENCENDIÉNDOSE...";
 
-
-        /*
-          Después de 15 segundos
-          volvemos a permitir pulsar.
-        */
 
         setTimeout(
           function () {
