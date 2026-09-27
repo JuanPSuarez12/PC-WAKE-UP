@@ -1,0 +1,1227 @@
+```html
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>PC Gaming - Control</title>
+
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+
+            font-family: Arial, sans-serif;
+
+            background: #0f1115;
+
+            color: white;
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            padding: 20px;
+        }
+
+
+        .container {
+
+            width: 100%;
+            max-width: 430px;
+
+            background: #181b21;
+
+            border-radius: 20px;
+
+            padding: 28px;
+
+            box-shadow:
+                0 15px 40px rgba(0,0,0,0.4);
+        }
+
+
+        h1 {
+
+            text-align: center;
+
+            margin: 0 0 8px;
+        }
+
+
+        .subtitle {
+
+            text-align: center;
+
+            color: #999;
+
+            margin-bottom: 25px;
+        }
+
+
+        /* ================================
+           ESTADOS
+           ================================ */
+
+        .status-card {
+
+            background: #111318;
+
+            border-radius: 14px;
+
+            padding: 18px;
+
+            margin-bottom: 20px;
+        }
+
+
+        .status-row {
+
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+            padding: 10px 0;
+
+            border-bottom:
+                1px solid #272b33;
+        }
+
+
+        .status-row:last-child {
+
+            border-bottom: none;
+        }
+
+
+        .status-label {
+
+            font-size: 15px;
+        }
+
+
+        .status-value {
+
+            font-weight: bold;
+
+            text-align: right;
+        }
+
+
+        .online {
+
+            color: #35d07f;
+        }
+
+
+        .offline {
+
+            color: #ff4d4d;
+        }
+
+
+        .warning {
+
+            color: #ffb84d;
+        }
+
+
+        .unknown {
+
+            color: #777;
+        }
+
+
+        /* ================================
+           BOTÓN WAKE
+           ================================ */
+
+        button {
+
+            width: 100%;
+
+            border: none;
+
+            border-radius: 14px;
+
+            padding: 17px;
+
+            font-size: 18px;
+
+            font-weight: bold;
+
+            cursor: pointer;
+
+            background: #ffffff;
+
+            color: #111;
+
+            transition: 0.2s;
+        }
+
+
+        button:hover {
+
+            transform: scale(1.02);
+        }
+
+
+        button:disabled {
+
+            opacity: 0.5;
+
+            cursor: not-allowed;
+
+            transform: none;
+        }
+
+
+        /* ================================
+           MENSAJES
+           ================================ */
+
+        .message {
+
+            text-align: center;
+
+            margin-top: 18px;
+
+            min-height: 24px;
+
+            color: #aaa;
+        }
+
+
+        .last-update {
+
+            text-align: center;
+
+            margin-top: 12px;
+
+            font-size: 13px;
+
+            color: #777;
+        }
+
+
+        .connection {
+
+            text-align: center;
+
+            margin-top: 18px;
+
+            font-size: 13px;
+
+            color: #777;
+        }
+
+
+        /* ================================
+           CONFIGURACIÓN
+           ================================ */
+
+        .settings {
+
+            margin-top: 20px;
+        }
+
+
+        .settings button {
+
+            background: #292d35;
+
+            color: #ccc;
+
+            font-size: 14px;
+
+            padding: 11px;
+        }
+
+
+        .settings button:hover {
+
+            background: #343943;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<div class="container">
+
+
+    <h1>🎮 PC GAMING</h1>
+
+
+    <div class="subtitle">
+        Control remoto
+    </div>
+
+
+    <!-- =====================================
+         ESTADOS
+         ===================================== -->
+
+    <div class="status-card">
+
+
+        <!-- PC -->
+
+        <div class="status-row">
+
+            <span class="status-label">
+                🖥️ PC
+            </span>
+
+            <span
+                id="pcStatus"
+                class="status-value unknown">
+
+                ⚫ SIN DATOS
+
+            </span>
+
+        </div>
+
+
+        <!-- TAILSCALE -->
+
+        <div class="status-row">
+
+            <span class="status-label">
+                🌐 Tailscale
+            </span>
+
+            <span
+                id="tailscaleStatus"
+                class="status-value unknown">
+
+                ⚫ SIN DATOS
+
+            </span>
+
+        </div>
+
+
+        <!-- SUNSHINE -->
+
+        <div class="status-row">
+
+            <span class="status-label">
+                🎮 Sunshine
+            </span>
+
+            <span
+                id="sunshineStatus"
+                class="status-value unknown">
+
+                ⚫ SIN DATOS
+
+            </span>
+
+        </div>
+
+
+    </div>
+
+
+    <!-- =====================================
+         BOTÓN WAKE
+         ===================================== -->
+
+    <button
+        id="wakeButton"
+        onclick="wakePC()"
+        disabled>
+
+        ⚡ ENCENDER PC
+
+    </button>
+
+
+    <!-- =====================================
+         MENSAJE
+         ===================================== -->
+
+    <div
+        id="message"
+        class="message">
+
+        Configura la conexión MQTT.
+
+    </div>
+
+
+    <!-- =====================================
+         ÚLTIMA SEÑAL
+         ===================================== -->
+
+    <div
+        id="lastUpdate"
+        class="last-update">
+
+        Sin datos
+
+    </div>
+
+
+    <!-- =====================================
+         CONEXIÓN HIVEMQ
+         ===================================== -->
+
+    <div
+        id="connection"
+        class="connection">
+
+        HiveMQ: desconectado
+
+    </div>
+
+
+    <!-- =====================================
+         CONFIGURACIÓN
+         ===================================== -->
+
+    <div class="settings">
+
+        <button onclick="configureMQTT()">
+
+            ⚙️ Configurar conexión
+
+        </button>
+
+    </div>
+
+
+</div>
+
+
+<script>
+
+
+// =====================================================
+// CONFIGURACIÓN HIVEMQ
+// =====================================================
+
+
+// Host de HiveMQ
+const MQTT_HOST =
+    "a50a4a68b1a247a1866a3db9a6d40ce2.s1.eu.hivemq.cloud";
+
+
+// Usuario de HiveMQ
+// NO contiene la contraseña
+const MQTT_USER =
+    "JuanxSt12";
+
+
+// WebSocket seguro
+const MQTT_URL =
+    `wss://${MQTT_HOST}:8884/mqtt`;
+
+
+// =====================================================
+// TOPICS
+// =====================================================
+
+
+// Comando para despertar el PC
+const WAKE_TOPIC =
+    "juanpablo/pc/wake";
+
+
+// Estado del PC
+const STATUS_TOPIC =
+    "juanpablo/pc/status";
+
+
+// =====================================================
+// VARIABLES
+// =====================================================
+
+let client = null;
+
+let lastStatusTime = 0;
+
+
+// =====================================================
+// ELEMENTOS
+// =====================================================
+
+const wakeButton =
+    document.getElementById("wakeButton");
+
+const message =
+    document.getElementById("message");
+
+const connection =
+    document.getElementById("connection");
+
+const lastUpdate =
+    document.getElementById("lastUpdate");
+
+
+// =====================================================
+// CLIENT ID
+// =====================================================
+
+function generateClientID() {
+
+    return (
+        "web_" +
+        Math.random()
+            .toString(16)
+            .substring(2, 10)
+    );
+}
+
+
+// =====================================================
+// CONFIGURAR MQTT
+// =====================================================
+
+function configureMQTT() {
+
+
+    const password =
+        prompt(
+            "Introduce la contraseña de tu credencial HiveMQ:"
+        );
+
+
+    if (!password) {
+
+        return;
+    }
+
+
+    // Guardar únicamente
+    // en el navegador
+
+    localStorage.setItem(
+        "mqtt_password",
+        password
+    );
+
+
+    message.textContent =
+        "Contraseña guardada. Conectando...";
+
+
+    connectMQTT();
+
+}
+
+
+// =====================================================
+// CONECTAR MQTT
+// =====================================================
+
+function connectMQTT() {
+
+
+    const password =
+        localStorage.getItem(
+            "mqtt_password"
+        );
+
+
+    // ---------------------------------------------
+    // NO HAY CONTRASEÑA
+    // ---------------------------------------------
+
+    if (!password) {
+
+        connection.textContent =
+            "HiveMQ: 🔴 falta configurar";
+
+        connection.className =
+            "connection offline";
+
+        message.textContent =
+            "Pulsa ⚙️ Configurar conexión.";
+
+        return;
+    }
+
+
+    // ---------------------------------------------
+    // EVITAR DUPLICADOS
+    // ---------------------------------------------
+
+    if (
+        client &&
+        client.connected
+    ) {
+
+        return;
+    }
+
+
+    connection.textContent =
+        "HiveMQ: 🟡 conectando...";
+
+    connection.className =
+        "connection warning";
+
+
+    // ---------------------------------------------
+    // CREAR CLIENTE MQTT
+    // ---------------------------------------------
+
+    client = mqtt.connect(
+
+        MQTT_URL,
+
+        {
+
+            username:
+                MQTT_USER,
+
+            password:
+                password,
+
+            clientId:
+                generateClientID(),
+
+            clean:
+                true,
+
+            reconnectPeriod:
+                3000,
+
+            connectTimeout:
+                10000,
+
+            keepalive:
+                30
+
+        }
+
+    );
+
+
+    // =================================================
+    // CONECTADO
+    // =================================================
+
+    client.on(
+        "connect",
+        function () {
+
+
+            console.log(
+                "MQTT conectado"
+            );
+
+
+            connection.textContent =
+                "HiveMQ: 🟢 conectado";
+
+            connection.className =
+                "connection online";
+
+
+            message.textContent =
+                "Conectado. Esperando estado del PC.";
+
+
+            // -----------------------------------------
+            // SUSCRIBIRSE AL ESTADO
+            // -----------------------------------------
+
+            client.subscribe(
+
+                STATUS_TOPIC,
+
+                {
+                    qos: 1
+                },
+
+                function (error) {
+
+
+                    if (error) {
+
+                        console.error(
+                            "Error al suscribirse:",
+                            error
+                        );
+
+                        message.textContent =
+                            "❌ Error leyendo estado del PC.";
+
+                        return;
+                    }
+
+
+                    console.log(
+                        "Suscrito a:",
+                        STATUS_TOPIC
+                    );
+
+
+                    message.textContent =
+                        "Esperando estado del PC...";
+
+                }
+
+            );
+
+        }
+    );
+
+
+    // =================================================
+    // RECIBIR MENSAJES
+    // =================================================
+
+    client.on(
+        "message",
+        function (topic, payload) {
+
+
+            if (
+                topic !== STATUS_TOPIC
+            ) {
+
+                return;
+            }
+
+
+            try {
+
+
+                const data =
+                    JSON.parse(
+                        payload.toString()
+                    );
+
+
+                console.log(
+                    "Estado recibido:",
+                    data
+                );
+
+
+                // -------------------------------------
+                // ACTUALIZAR TIEMPO
+                // -------------------------------------
+
+                lastStatusTime =
+                    Date.now();
+
+
+                // -------------------------------------
+                // PC
+                // -------------------------------------
+
+                if (
+                    data.pc === "online"
+                ) {
+
+                    setStatus(
+                        "pcStatus",
+                        "🟢 ENCENDIDO",
+                        "online"
+                    );
+
+                }
+
+                else {
+
+                    setStatus(
+                        "pcStatus",
+                        "🔴 APAGADO",
+                        "offline"
+                    );
+
+                }
+
+
+                // -------------------------------------
+                // TAILSCALE
+                // -------------------------------------
+
+                if (
+                    data.tailscale === "online"
+                ) {
+
+                    setStatus(
+                        "tailscaleStatus",
+                        "🟢 CONECTADO",
+                        "online"
+                    );
+
+                }
+
+                else {
+
+                    setStatus(
+                        "tailscaleStatus",
+                        "🔴 DESCONECTADO",
+                        "offline"
+                    );
+
+                }
+
+
+                // -------------------------------------
+                // SUNSHINE
+                // -------------------------------------
+
+                if (
+                    data.sunshine === "online"
+                ) {
+
+                    setStatus(
+                        "sunshineStatus",
+                        "🟢 DISPONIBLE",
+                        "online"
+                    );
+
+                }
+
+                else {
+
+                    setStatus(
+                        "sunshineStatus",
+                        "🔴 DETENIDO",
+                        "offline"
+                    );
+
+                }
+
+
+                // -------------------------------------
+                // BOTÓN
+                // -------------------------------------
+
+                if (
+                    data.pc === "online"
+                ) {
+
+                    wakeButton.disabled =
+                        true;
+
+                    wakeButton.textContent =
+                        "🟢 PC ENCENDIDO";
+
+                }
+
+                else {
+
+                    wakeButton.disabled =
+                        false;
+
+                    wakeButton.textContent =
+                        "⚡ ENCENDER PC";
+
+                }
+
+
+                // -------------------------------------
+                // ÚLTIMA SEÑAL
+                // -------------------------------------
+
+                lastUpdate.textContent =
+                    "Última señal: hace unos segundos";
+
+
+                message.textContent =
+                    "Estado actualizado.";
+
+            }
+
+
+            catch (error) {
+
+
+                console.error(
+                    "Error interpretando estado:",
+                    error
+                );
+
+
+                message.textContent =
+                    "⚠️ Estado recibido con formato incorrecto.";
+
+            }
+
+        }
+    );
+
+
+    // =================================================
+    // ERROR
+    // =================================================
+
+    client.on(
+        "error",
+        function (error) {
+
+
+            console.error(
+                "MQTT Error:",
+                error
+            );
+
+
+            connection.textContent =
+                "HiveMQ: 🔴 error de conexión";
+
+            connection.className =
+                "connection offline";
+
+
+            wakeButton.disabled =
+                true;
+
+
+            message.textContent =
+                "No se pudo conectar a HiveMQ.";
+
+        }
+    );
+
+
+    // =================================================
+    // RECONEXIÓN
+    // =================================================
+
+    client.on(
+        "reconnect",
+        function () {
+
+
+            connection.textContent =
+                "HiveMQ: 🟡 reconectando...";
+
+            connection.className =
+                "connection warning";
+
+
+            wakeButton.disabled =
+                true;
+
+        }
+    );
+
+
+    // =================================================
+    // CERRADO
+    // =================================================
+
+    client.on(
+        "close",
+        function () {
+
+
+            connection.textContent =
+                "HiveMQ: 🔴 desconectado";
+
+            connection.className =
+                "connection offline";
+
+
+            wakeButton.disabled =
+                true;
+
+
+            message.textContent =
+                "Intentando reconectar...";
+
+        }
+    );
+
+}
+
+
+// =====================================================
+// ACTUALIZAR ESTADO VISUAL
+// =====================================================
+
+function setStatus(
+    id,
+    text,
+    type
+) {
+
+
+    const element =
+        document.getElementById(id);
+
+
+    element.textContent =
+        text;
+
+
+    element.className =
+        "status-value " + type;
+
+}
+
+
+// =====================================================
+// ENCENDER PC
+// =====================================================
+
+function wakePC() {
+
+
+    // ---------------------------------------------
+    // COMPROBAR MQTT
+    // ---------------------------------------------
+
+    if (
+        !client ||
+        !client.connected
+    ) {
+
+        message.textContent =
+            "❌ HiveMQ no está conectado.";
+
+        return;
+    }
+
+
+    // ---------------------------------------------
+    // DESACTIVAR BOTÓN
+    // ---------------------------------------------
+
+    wakeButton.disabled =
+        true;
+
+
+    wakeButton.textContent =
+        "🟡 ENCENDIENDO...";
+
+
+    message.textContent =
+        "⚡ Enviando comando WAKE...";
+
+
+    // ---------------------------------------------
+    // PUBLICAR WAKE
+    // ---------------------------------------------
+
+    client.publish(
+
+        WAKE_TOPIC,
+
+        "WAKE",
+
+        {
+
+            qos: 1,
+
+            retain: false
+
+        },
+
+        function (error) {
+
+
+            if (error) {
+
+
+                console.error(
+                    error
+                );
+
+
+                message.textContent =
+                    "❌ Error enviando comando.";
+
+
+                wakeButton.disabled =
+                    false;
+
+
+                wakeButton.textContent =
+                    "⚡ ENCENDER PC";
+
+
+                return;
+            }
+
+
+            message.textContent =
+                "⚡ Comando enviado. Encendiendo PC...";
+
+
+            // -----------------------------------------
+            // Mostrar estado temporal
+            // -----------------------------------------
+
+            setStatus(
+                "pcStatus",
+                "🟡 ENCENDIENDO",
+                "warning"
+            );
+
+
+            // -----------------------------------------
+            // Esperar al heartbeat real
+            // -----------------------------------------
+
+            setTimeout(
+
+                function () {
+
+
+                    // El estado real será
+                    // actualizado por MQTT
+
+
+                    if (
+                        lastStatusTime === 0 ||
+                        (
+                            Date.now() -
+                            lastStatusTime
+                        ) > 10000
+                    ) {
+
+                        wakeButton.disabled =
+                            false;
+
+                    }
+
+                },
+
+                5000
+
+            );
+
+        }
+
+    );
+
+}
+
+
+// =====================================================
+// COMPROBAR SI DEJÓ DE LLEGAR HEARTBEAT
+// =====================================================
+
+setInterval(
+
+    function () {
+
+
+        if (
+            lastStatusTime === 0
+        ) {
+
+            return;
+        }
+
+
+        const seconds =
+            Math.floor(
+
+                (
+                    Date.now() -
+                    lastStatusTime
+                ) / 1000
+
+            );
+
+
+        lastUpdate.textContent =
+            "Última señal: hace " +
+            seconds +
+            " segundos";
+
+
+        // ---------------------------------------------
+        // MÁS DE 90 SEGUNDOS SIN SEÑAL
+        // ---------------------------------------------
+
+        if (
+            seconds > 90
+        ) {
+
+
+            setStatus(
+                "pcStatus",
+                "🔴 SIN SEÑAL",
+                "offline"
+            );
+
+
+            setStatus(
+                "tailscaleStatus",
+                "⚫ SIN DATOS",
+                "unknown"
+            );
+
+
+            setStatus(
+                "sunshineStatus",
+                "⚫ SIN DATOS",
+                "unknown"
+            );
+
+
+            wakeButton.disabled =
+                false;
+
+
+            wakeButton.textContent =
+                "⚡ ENCENDER PC";
+
+
+            message.textContent =
+                "Sin señal del PC.";
+
+        }
+
+    },
+
+    1000
+
+);
+
+
+// =====================================================
+// INICIAR
+// =====================================================
+
+window.addEventListener(
+
+    "load",
+
+    function () {
+
+        connectMQTT();
+
+    }
+
+);
+
+</script>
+
+
+</body>
+
+</html>
+```
